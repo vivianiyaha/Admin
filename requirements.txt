@@ -1,1 +1,3 @@
 streamlit==1.45.1
+os
+base64
