@@ -1,145 +1,108 @@
 import streamlit as st
-import pandas as pd
+import os
+import base64
 
-# ======================================================
+# =========================
 # PAGE CONFIG
-# ======================================================
-st.set_page_config(
-    page_title="Monthly Appraisal System",
-    layout="wide"
-)
+# =========================
+st.set_page_config(page_title="Admin Document Portal", layout="wide")
 
-# ======================================================
-# STYLE
-# ======================================================
-st.markdown("""
-<style>
-.stApp {
-    background-color: white;
-}
+# =========================
+# FOLDERS
+# =========================
+MEETINGS_FOLDER = "Meetings"
+REPORTS_FOLDER = "Reports"
 
-h1, h2, h3 {
-    color: #1f2937;
-}
-</style>
-""", unsafe_allow_html=True)
+# =========================
+# HELPERS
+# =========================
 
-st.title("📊 Monthly Appraisal System")
+def get_files(folder):
+    try:
+        return os.listdir(folder)
+    except Exception as e:
+        st.error(f"Error loading files: {e}")
+        return []
 
-st.write("Upload employee KPI CSV file for automatic appraisal scoring.")
 
-# ======================================================
-# KPI TARGETS & WEIGHTS
-# ======================================================
-kpi_targets = {
-    "Lead Generation": 100,
-    "Client Acquisition": 10,
-    "Revenue Growth": 5000000,
-    "Client Conversion": 30,
-    "Pipeline Management": 10000000,
-    "Proposal Success": 40,
-    "Client Retention": 90,
-    "Customer Relationship": 5,
-    "Business Expansion": 2,
-    "Reporting & Compliance": 100,
-    "Team Collaboration": 100,
-    "Professional Conduct": 100
-}
+def display_file(folder, file_name):
+    file_path = os.path.join(folder, file_name)
 
-kpi_weights = {
-    "Lead Generation": 10,
-    "Client Acquisition": 10,
-    "Revenue Growth": 15,
-    "Client Conversion": 10,
-    "Pipeline Management": 10,
-    "Proposal Success": 10,
-    "Client Retention": 10,
-    "Customer Relationship": 5,
-    "Business Expansion": 5,
-    "Reporting & Compliance": 5,
-    "Team Collaboration": 5,
-    "Professional Conduct": 5
-}
+    st.subheader(file_name)
 
-# ======================================================
-# FILE UPLOAD
-# ======================================================
-uploaded_file = st.file_uploader(
-    "Upload CSV File",
-    type=["csv"]
-)
+    # PDF → preview + download
+    if file_name.endswith(".pdf"):
+        with open(file_path, "rb") as f:
+            pdf_bytes = f.read()
 
-if uploaded_file is not None:
+        st.download_button(
+            "Download PDF",
+            data=pdf_bytes,
+            file_name=file_name,
+            mime="application/pdf",
+            key=f"pdf_{file_name}"
+        )
 
-    df = pd.read_csv(uploaded_file)
+        st.markdown("### Preview")
+        st.components.v1.iframe(
+            src=f"data:application/pdf;base64,{base64.b64encode(pdf_bytes).decode()}",
+            width=700,
+            height=900
+        )
 
-    # ==================================================
-    # SCORE CALCULATION
-    # ==================================================
-    total_scores = []
+    # DOCX → download only
+    elif file_name.endswith(".docx"):
+        with open(file_path, "rb") as f:
+            docx_bytes = f.read()
 
-    for index, row in df.iterrows():
+        st.info("Preview not supported. Download to view in original format.")
 
-        total_score = 0
+        st.download_button(
+            "Download DOCX",
+            data=docx_bytes,
+            file_name=file_name,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            key=f"docx_{file_name}"
+        )
 
-        for kpi in kpi_targets.keys():
+    # TXT → display
+    elif file_name.endswith(".txt"):
+        with open(file_path, "r") as f:
+            st.text(f.read())
 
-            actual = row[kpi]
-            target = kpi_targets[kpi]
-            weight = kpi_weights[kpi]
+    else:
+        st.warning("Unsupported file type")
 
-            achievement = (actual / target) * 100
+# =========================
+# UI
+# =========================
 
-            # Maximum score cap = 100%
-            achievement = min(achievement, 100)
+st.title("Admin Document Portal")
 
-            weighted_score = (
-                achievement * weight
-            ) / 100
+with st.sidebar:
+    st.header("Navigation")
 
-            total_score += weighted_score
-
-        total_scores.append(round(total_score, 2))
-
-    df["Final Score (%)"] = total_scores
-
-    # ==================================================
-    # PERFORMANCE RATING
-    # ==================================================
-    def performance_rating(score):
-        if score >= 90:
-            return "Excellent"
-        elif score >= 75:
-            return "Very Good"
-        elif score >= 60:
-            return "Good"
-        elif score >= 50:
-            return "Average"
-        else:
-            return "Poor"
-
-    df["Performance Rating"] = df[
-        "Final Score (%)"
-    ].apply(performance_rating)
-
-    # ==================================================
-    # DISPLAY RESULTS
-    # ==================================================
-    st.subheader("Monthly Appraisal Results")
-
-    st.dataframe(
-        df,
-        use_container_width=True
+    meeting_files = get_files(MEETINGS_FOLDER)
+    selected_meeting = st.selectbox(
+        "Meetings",
+        ["None"] + meeting_files
     )
 
-    # ==================================================
-    # DOWNLOAD RESULT
-    # ==================================================
-    csv = df.to_csv(index=False).encode("utf-8")
-
-    st.download_button(
-        label="📥 Download Appraisal Report",
-        data=csv,
-        file_name="monthly_appraisal_results.csv",
-        mime="text/csv"
+    report_files = get_files(REPORTS_FOLDER)
+    selected_report = st.selectbox(
+        "Reports",
+        ["None"] + report_files
     )
+
+# =========================
+# DISPLAY
+# =========================
+
+if selected_meeting != "None":
+    display_file(MEETINGS_FOLDER, selected_meeting)
+
+elif selected_report != "None":
+    display_file(REPORTS_FOLDER, selected_report)
+
+else:
+    st.info("Select a file from the sidebar")
