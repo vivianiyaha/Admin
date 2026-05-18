@@ -25,7 +25,10 @@ def get_files(folder):
         st.warning(f"{folder} folder not found")
         return []
 
-    return sorted(os.listdir(folder))
+    return sorted(
+        f for f in os.listdir(folder)
+        if os.path.isfile(os.path.join(folder, f))
+    )
 
 
 def display_file(folder, file_name):
@@ -33,70 +36,69 @@ def display_file(folder, file_name):
 
     st.subheader(file_name)
 
+    if not os.path.exists(file_path):
+        st.error("File not found")
+        return
+
+    # Read file once
+    with open(file_path, "rb") as f:
+        file_bytes = f.read()
+
     # =========================
-    # PDF PREVIEW
+    # DOWNLOAD BUTTON
+    # =========================
+    st.download_button(
+        "⬇ Download File",
+        data=file_bytes,
+        file_name=file_name,
+        mime="application/octet-stream"
+    )
+
+    # =========================
+    # PDF PREVIEW (Original Format)
     # =========================
     if file_name.lower().endswith(".pdf"):
 
-        with open(file_path, "rb") as f:
-            pdf_bytes = f.read()
+        base64_pdf = base64.b64encode(file_bytes).decode("utf-8")
 
-        st.download_button(
-            "⬇ Download PDF",
-            data=pdf_bytes,
-            file_name=file_name,
-            mime="application/pdf"
+        st.markdown(
+            f"""
+            <iframe
+                src="data:application/pdf;base64,{base64_pdf}"
+                width="100%"
+                height="900px"
+                style="border:none;"
+            ></iframe>
+            """,
+            unsafe_allow_html=True
         )
 
-        pdf_base64 = base64.b64encode(pdf_bytes).decode("utf-8")
-
-        pdf_display = f"""
-        <iframe
-            src="data:application/pdf;base64,{pdf_base64}"
-            width="100%"
-            height="900"
-            type="application/pdf">
-        </iframe>
-        """
-
-        st.markdown(pdf_display, unsafe_allow_html=True)
-
     # =========================
-    # DOCX PREVIEW
+    # DOCX PREVIEW (Word-like Format)
     # =========================
     elif file_name.lower().endswith(".docx"):
 
-        with open(file_path, "rb") as docx_file:
-            result = mammoth.convert_to_html(docx_file)
-            html = result.value
-
-        with open(file_path, "rb") as f:
-            docx_bytes = f.read()
-
-        st.download_button(
-            "⬇ Download DOCX",
-            data=docx_bytes,
-            file_name=file_name,
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+        result = mammoth.convert_to_html(file_bytes)
+        html = result.value
 
         st.markdown("### Document Preview")
 
         st.components.v1.html(
             f"""
             <div style="
-                border:1px solid #ddd;
-                padding:25px;
+                background:white;
+                padding:20px;
                 border-radius:10px;
-                background-color:white;
+                border:1px solid #ddd;
+                height:850px;
+                overflow:auto;
                 color:black;
-                height:800px;
-                overflow-y:auto;
+                font-family: Arial, sans-serif;
             ">
-            {html}
+                {html}
             </div>
             """,
-            height=850,
+            height=900,
             scrolling=True
         )
 
@@ -105,12 +107,9 @@ def display_file(folder, file_name):
     # =========================
     elif file_name.lower().endswith(".txt"):
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
         st.text_area(
             "Text Preview",
-            content,
+            file_bytes.decode("utf-8"),
             height=500
         )
 
@@ -127,21 +126,13 @@ with st.sidebar:
     st.header("Navigation")
 
     meeting_files = get_files(MEETINGS_FOLDER)
-
-    selected_meeting = st.selectbox(
-        "Meetings",
-        ["None"] + meeting_files
-    )
+    selected_meeting = st.selectbox("Meetings", ["None"] + meeting_files)
 
     report_files = get_files(REPORTS_FOLDER)
-
-    selected_report = st.selectbox(
-        "Reports",
-        ["None"] + report_files
-    )
+    selected_report = st.selectbox("Reports", ["None"] + report_files)
 
 # =========================
-# DISPLAY
+# DISPLAY LOGIC
 # =========================
 if selected_meeting != "None":
     display_file(MEETINGS_FOLDER, selected_meeting)
