@@ -153,61 +153,59 @@ def searchable_selectbox(label, options):
 
 
 # =========================
-# MAIN UI
+# MAIN UI & SIDEBAR NAVIGATION
 # =========================
 st.title("📂 Admin Document Portal")
 
 with st.sidebar:
     st.header("Navigation")
-    
-    # Selection radio determines which section's logic is loaded onto the main page
+    # Choose which section you want to operate in
     app_mode = st.radio("Go to:", ["Meetings", "Reports", "Stock", "Consumables"])
+    
+    st.markdown("---")
 
 # =========================
 # INDEPENDENT FUNCTIONAL MODES
 # =========================
 
 if app_mode == "Meetings":
-    meeting_files = get_files(FOLDERS["Meetings"])
-    selected_meeting = st.selectbox("Select Meeting File", ["None"] + meeting_files)
+    with st.sidebar:
+        meeting_files = get_files(FOLDERS["Meetings"])
+        selected_meeting = st.selectbox("Meetings", ["None"] + meeting_files)
     
     if selected_meeting != "None":
         display_file(FOLDERS["Meetings"], selected_meeting)
     else:
-        st.info("Select a meeting document to view.")
+        st.info("Select a meeting document from the sidebar to view.")
 
 elif app_mode == "Reports":
-    report_files = get_files(FOLDERS["Reports"])
-    selected_report = st.selectbox("Select Report File", ["None"] + report_files)
+    with st.sidebar:
+        report_files = get_files(FOLDERS["Reports"])
+        selected_report = st.selectbox("Reports", ["None"] + report_files)
     
     if selected_report != "None":
         display_file(FOLDERS["Reports"], selected_report)
     else:
-        st.info("Select a report document to view.")
+        st.info("Select a report document from the sidebar to view.")
 
 elif app_mode == "Stock":
-    # 1. Stock File Viewer Block
-    stock_files = get_files(FOLDERS["Stock"])
-    selected_stock = searchable_selectbox("Stock Records Viewer", stock_files)
+    with st.sidebar:
+        stock_files = get_files(FOLDERS["Stock"])
+        selected_stock = searchable_selectbox("Stock Records", stock_files)
     
+    # If a file is selected, display it at the top
     if selected_stock != "None":
         display_file(FOLDERS["Stock"], selected_stock)
-        st.markdown("---") # UI Separator line
+        st.markdown("---")
         
-    # 2. Stock Movement Register Appears Only Under Stock View
+    # The Stock Movement Register features ONLY render here
     st.subheader("📦 Stock/Furniture Movement Register")
 
     register_file = os.path.join(FOLDERS["Stock"], "stock_movement_register.csv")
 
     if not os.path.exists(register_file):
         pd.DataFrame(columns=[
-            "Date",
-            "Item Name",
-            "Quantity",
-            "From Office",
-            "To Office",
-            "Moved By",
-            "Reason"
+            "Date", "Item Name", "Quantity", "From Office", "To Office", "Moved By", "Reason"
         ]).to_csv(register_file, index=False)
 
     with st.expander("➕ Add Stock Movement"):
@@ -242,7 +240,6 @@ elif app_mode == "Stock":
                 else:
                     st.error("Please fill required fields")
 
-    # View register
     st.subheader("📋 Movement History")
 
     try:
@@ -260,11 +257,11 @@ elif app_mode == "Stock":
         st.error(f"Error loading register: {e}")
 
 elif app_mode == "Consumables":
-    consumable_files = get_files(FOLDERS["Consumables"])
-    selected_consumable = searchable_selectbox("Consumables Records", consumable_files)
+    with st.sidebar:
+        consumable_files = get_files(FOLDERS["Consumables"])
+        selected_consumable = searchable_selectbox("Consumables", consumable_files)
     
     if selected_consumable != "None":
         display_file(FOLDERS["Consumables"], selected_consumable)
     else:
-        st.info("Select a consumable record document to view.")
-            
+        st.info("Select a consumable record document from the sidebar to view.")
