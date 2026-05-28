@@ -3,11 +3,15 @@ import os
 import base64
 import pandas as pd
 import mammoth
+from io import BytesIO
 
 # =========================
 # PAGE CONFIG
 # =========================
-st.set_page_config(page_title="Admin Panel", layout="wide")
+st.set_page_config(
+    page_title="Admin Panel",
+    layout="wide"
+)
 
 # =========================
 # CUSTOM STYLING
@@ -24,9 +28,11 @@ body {
 h1, h2, h3 {
     color: #ff6600;
 }
-.sidebar .sidebar-content {
+section[data-testid="stSidebar"] {
     background-color: black;
-    color: white;
+}
+section[data-testid="stSidebar"] * {
+    color: white !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -45,6 +51,7 @@ FOLDERS = {
 # HELPERS
 # =========================
 def get_files(folder):
+    """Get all files inside folder"""
     if not os.path.exists(folder):
         st.warning(f"{folder} folder not found")
         return []
@@ -56,50 +63,97 @@ def get_files(folder):
 
 
 def read_file_once(file_path):
-    with open(file_path, "rb") as f:
-        return f.read()
+    """Read file once"""
+    try:
+        with open(file_path, "rb") as f:
+            return f.read()
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
+        return None
 
 
 def display_file(folder, file_name):
+    """Display selected file"""
     file_path = os.path.join(folder, file_name)
 
     if not os.path.exists(file_path):
         st.error("File not found")
         return
 
-    st.subheader(file_name)
+    st.subheader(f"📄 {file_name}")
 
     file_bytes = read_file_once(file_path)
 
-    # DOWNLOAD
+    if file_bytes is None:
+        return
+
+    # =========================
+    # DOWNLOAD BUTTON
+    # =========================
     st.download_button(
-        "⬇ Download File",
+        label="⬇ Download File",
         data=file_bytes,
-        file_name=file_name
+        file_name=file_name,
+        mime="application/octet-stream"
     )
 
-    # PDF
+    # =========================
+    # PDF PREVIEW
+    # =========================
     if file_name.lower().endswith(".pdf"):
-        base64_pdf = base64.b64encode(file_bytes).decode("utf-8")
-        st.markdown(f"""
-        <iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="900px"></iframe>
-        """, unsafe_allow_html=True)
+        try:
+            base64_pdf = base64.b64encode(file_bytes).decode("utf-8")
 
-    # DOCX
+            st.markdown(f"""
+            <iframe
+                src="data:application/pdf;base64,{base64_pdf}"
+                width="100%"
+                height="900px"
+                style="border:none;">
+            </iframe>
+            """, unsafe_allow_html=True)
+
+        except Exception as e:
+            st.error(f"Error displaying PDF: {e}")
+
+    # =========================
+    # DOCX PREVIEW
+    # =========================
     elif file_name.lower().endswith(".docx"):
-        result = mammoth.convert_to_html(file_bytes)
-        html = result.value
+        try:
+            # Convert bytes to file-like object
+            docx_file = BytesIO(file_bytes)
 
-        st.components.v1.html(f"""
-        <div style='background:white;padding:20px;border-radius:10px;height:850px;overflow:auto;color:black;'>
-        {html}
-        </div>
-        """, height=900)
+            result = mammoth.convert_to_html(docx_file)
+            html = result.value
 
-    # EXCEL / CSV
+            st.components.v1.html(
+                f"""
+                <div style="
+                    background:white;
+                    padding:20px;
+                    border-radius:10px;
+                    height:850px;
+                    overflow:auto;
+                    color:black;
+                    border:1px solid #ddd;
+                ">
+                    {html}
+                </div>
+                """,
+                height=900,
+                scrolling=True
+            )
+
+        except Exception as e:
+            st.error(f"Error displaying Word document: {e}")
+
+    # =========================
+    # EXCEL / CSV PREVIEW
+    # =========================
     elif file_name.lower().endswith((".xlsx", ".xls", ".csv")):
         try:
-            if file_name.endswith(".csv"):
+            if file_name.lower().endswith(".csv"):
                 df = pd.read_csv(file_path)
             else:
                 df = pd.read_excel(file_path)
@@ -107,60 +161,108 @@ def display_file(folder, file_name):
             st.dataframe(df, use_container_width=True)
 
         except Exception as e:
-            st.error(f"Error reading file: {e}")
+            st.error(f"Error reading spreadsheet: {e}")
 
-    # TXT
+    # =========================
+    # TEXT FILE PREVIEW
+    # =========================
     elif file_name.lower().endswith(".txt"):
-        st.text_area("Preview", file_bytes.decode("utf-8"), height=500)
+        try:
+            text_content = file_bytes.decode("utf-8")
+            st.text_area("Preview", text_content, height=500)
 
+        except Exception as e:
+            st.error(f"Error reading text file: {e}")
+
+    # =========================
+    # UNSUPPORTED FILE
+    # =========================
     else:
         st.warning("Unsupported file type")
 
 
 # =========================
-# SEARCHABLE SELECT
+# SEARCHABLE SELECTBOX
 # =========================
 def searchable_selectbox(label, options):
-    search = st.text_input(f"Search {label}")
-    filtered = [o for o in options if search.lower() in o.lower()] if search else options
-    return st.selectbox(label, ["None"] + filtered)
+    search = st.text_input(f"🔍 Search {label}")
+
+    if search:
+        filtered = [
+            option for option in options
+            if search.lower() in option.lower()
+        ]
+    else:
+        filtered = options
+
+    return st.selectbox(
+        label,
+        ["None"] + filtered
+    )
 
 
 # =========================
-# UI
+# MAIN UI
 # =========================
 st.title("📂 Admin Document Portal")
 
 with st.sidebar:
     st.header("Navigation")
 
+    # Meetings
     meeting_files = get_files(FOLDERS["Meetings"])
-    selected_meeting = st.selectbox("Meetings", ["None"] + meeting_files)
+    selected_meeting = st.selectbox(
+        "Meetings",
+        ["None"] + meeting_files
+    )
 
+    # Reports
     report_files = get_files(FOLDERS["Reports"])
-    selected_report = st.selectbox("Reports", ["None"] + report_files)
+    selected_report = st.selectbox(
+        "Reports",
+        ["None"] + report_files
+    )
 
+    # Stock
     stock_files = get_files(FOLDERS["Stock"])
-    selected_stock = searchable_selectbox("Stock Records", stock_files)
+    selected_stock = searchable_selectbox(
+        "Stock Records",
+        stock_files
+    )
 
+    # Consumables
     consumable_files = get_files(FOLDERS["Consumables"])
-    selected_consumable = searchable_selectbox("Consumables", consumable_files)
+    selected_consumable = searchable_selectbox(
+        "Consumables",
+        consumable_files
+    )
 
 # =========================
 # DISPLAY LOGIC
 # =========================
 if selected_meeting != "None":
-    display_file(FOLDERS["Meetings"], selected_meeting)
+    display_file(
+        FOLDERS["Meetings"],
+        selected_meeting
+    )
 
 elif selected_report != "None":
-    display_file(FOLDERS["Reports"], selected_report)
+    display_file(
+        FOLDERS["Reports"],
+        selected_report
+    )
 
 elif selected_stock != "None":
-    display_file(FOLDERS["Stock"], selected_stock)
+    display_file(
+        FOLDERS["Stock"],
+        selected_stock
+    )
 
 elif selected_consumable != "None":
-    display_file(FOLDERS["Consumables"], selected_consumable)
+    display_file(
+        FOLDERS["Consumables"],
+        selected_consumable
+    )
 
 else:
     st.info("Select a file from the sidebar")
-        
