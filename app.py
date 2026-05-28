@@ -159,101 +159,112 @@ st.title("📂 Admin Document Portal")
 
 with st.sidebar:
     st.header("Navigation")
+    
+    # Selection radio determines which section's logic is loaded onto the main page
+    app_mode = st.radio("Go to:", ["Meetings", "Reports", "Stock", "Consumables"])
 
+# =========================
+# INDEPENDENT FUNCTIONAL MODES
+# =========================
+
+if app_mode == "Meetings":
     meeting_files = get_files(FOLDERS["Meetings"])
-    selected_meeting = st.selectbox("Meetings", ["None"] + meeting_files)
+    selected_meeting = st.selectbox("Select Meeting File", ["None"] + meeting_files)
+    
+    if selected_meeting != "None":
+        display_file(FOLDERS["Meetings"], selected_meeting)
+    else:
+        st.info("Select a meeting document to view.")
 
+elif app_mode == "Reports":
     report_files = get_files(FOLDERS["Reports"])
-    selected_report = st.selectbox("Reports", ["None"] + report_files)
+    selected_report = st.selectbox("Select Report File", ["None"] + report_files)
+    
+    if selected_report != "None":
+        display_file(FOLDERS["Reports"], selected_report)
+    else:
+        st.info("Select a report document to view.")
 
+elif app_mode == "Stock":
+    # 1. Stock File Viewer Block
     stock_files = get_files(FOLDERS["Stock"])
-    selected_stock = searchable_selectbox("Stock Records", stock_files)
+    selected_stock = searchable_selectbox("Stock Records Viewer", stock_files)
+    
+    if selected_stock != "None":
+        display_file(FOLDERS["Stock"], selected_stock)
+        st.markdown("---") # UI Separator line
+        
+    # 2. Stock Movement Register Appears Only Under Stock View
+    st.subheader("📦 Stock/Furniture Movement Register")
 
+    register_file = os.path.join(FOLDERS["Stock"], "stock_movement_register.csv")
+
+    if not os.path.exists(register_file):
+        pd.DataFrame(columns=[
+            "Date",
+            "Item Name",
+            "Quantity",
+            "From Office",
+            "To Office",
+            "Moved By",
+            "Reason"
+        ]).to_csv(register_file, index=False)
+
+    with st.expander("➕ Add Stock Movement"):
+        with st.form("movement_form"):
+            date = st.date_input("Date")
+            item = st.text_input("Item Name")
+            qty = st.number_input("Quantity", min_value=1, step=1)
+            from_office = st.text_input("From Office")
+            to_office = st.text_input("To Office")
+            moved_by = st.text_input("Moved By")
+            reason = st.text_area("Reason")
+
+            submit = st.form_submit_button("Save Movement")
+
+            if submit:
+                if item and from_office and to_office:
+                    new_data = pd.DataFrame([{
+                        "Date": date,
+                        "Item Name": item,
+                        "Quantity": qty,
+                        "From Office": from_office,
+                        "To Office": to_office,
+                        "Moved By": moved_by,
+                        "Reason": reason
+                    }])
+
+                    df = pd.read_csv(register_file)
+                    df = pd.concat([df, new_data], ignore_index=True)
+                    df.to_csv(register_file, index=False)
+
+                    st.success("Movement saved successfully!")
+                else:
+                    st.error("Please fill required fields")
+
+    # View register
+    st.subheader("📋 Movement History")
+
+    try:
+        df = pd.read_csv(register_file)
+        st.dataframe(df, use_container_width=True)
+
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇ Download Register",
+            csv,
+            "stock_movement_register.csv",
+            "text/csv"
+        )
+    except Exception as e:
+        st.error(f"Error loading register: {e}")
+
+elif app_mode == "Consumables":
     consumable_files = get_files(FOLDERS["Consumables"])
-    selected_consumable = searchable_selectbox("Consumables", consumable_files)
-
-# =========================
-# STOCK MOVEMENT REGISTER
-# =========================
-st.subheader("📦 Stock/Furniture Movement Register")
-
-register_file = os.path.join(FOLDERS["Stock"], "stock_movement_register.csv")
-
-if not os.path.exists(register_file):
-    pd.DataFrame(columns=[
-        "Date",
-        "Item Name",
-        "Quantity",
-        "From Office",
-        "To Office",
-        "Moved By",
-        "Reason"
-    ]).to_csv(register_file, index=False)
-
-with st.expander("➕ Add Stock Movement"):
-    with st.form("movement_form"):
-
-        date = st.date_input("Date")
-        item = st.text_input("Item Name")
-        qty = st.number_input("Quantity", min_value=1, step=1)
-        from_office = st.text_input("From Office")
-        to_office = st.text_input("To Office")
-        moved_by = st.text_input("Moved By")
-        reason = st.text_area("Reason")
-
-        submit = st.form_submit_button("Save Movement")
-
-        if submit:
-            if item and from_office and to_office:
-                new_data = pd.DataFrame([{
-                    "Date": date,
-                    "Item Name": item,
-                    "Quantity": qty,
-                    "From Office": from_office,
-                    "To Office": to_office,
-                    "Moved By": moved_by,
-                    "Reason": reason
-                }])
-
-                df = pd.read_csv(register_file)
-                df = pd.concat([df, new_data], ignore_index=True)
-                df.to_csv(register_file, index=False)
-
-                st.success("Movement saved successfully!")
-            else:
-                st.error("Please fill required fields")
-
-# View register
-st.subheader("📋 Movement History")
-
-try:
-    df = pd.read_csv(register_file)
-    st.dataframe(df, use_container_width=True)
-
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "⬇ Download Register",
-        csv,
-        "stock_movement_register.csv",
-        "text/csv"
-    )
-except Exception as e:
-    st.error(f"Error loading register: {e}")
-
-# =========================
-# DISPLAY LOGIC
-# =========================
-if selected_meeting != "None":
-    display_file(FOLDERS["Meetings"], selected_meeting)
-
-elif selected_report != "None":
-    display_file(FOLDERS["Reports"], selected_report)
-
-elif selected_stock != "None":
-    display_file(FOLDERS["Stock"], selected_stock)
-
-elif selected_consumable != "None":
-    display_file(FOLDERS["Consumables"], selected_consumable)
-
-else:
-    st.info("Select a file from the sidebar")
+    selected_consumable = searchable_selectbox("Consumables Records", consumable_files)
+    
+    if selected_consumable != "None":
+        display_file(FOLDERS["Consumables"], selected_consumable)
+    else:
+        st.info("Select a consumable record document to view.")
+            
