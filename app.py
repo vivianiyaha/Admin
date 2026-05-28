@@ -47,6 +47,11 @@ FOLDERS = {
     "Consumables": "Consumables_Records"
 }
 
+# Ensure folders exist
+for folder_path in FOLDERS.values():
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
 # =========================
 # HELPERS
 # =========================
@@ -159,9 +164,7 @@ st.title("📂 Admin Document Portal")
 
 with st.sidebar:
     st.header("Navigation")
-    # Choose which section you want to operate in
     app_mode = st.radio("Go to:", ["Meetings", "Reports", "Stock", "Consumables"])
-    
     st.markdown("---")
 
 # =========================
@@ -193,12 +196,10 @@ elif app_mode == "Stock":
         stock_files = get_files(FOLDERS["Stock"])
         selected_stock = searchable_selectbox("Stock Records", stock_files)
     
-    # If a file is selected, display it at the top
     if selected_stock != "None":
         display_file(FOLDERS["Stock"], selected_stock)
         st.markdown("---")
         
-    # The Stock Movement Register features ONLY render here
     st.subheader("📦 Stock/Furniture Movement Register")
 
     register_file = os.path.join(FOLDERS["Stock"], "stock_movement_register.csv")
@@ -222,6 +223,7 @@ elif app_mode == "Stock":
 
             if submit:
                 if item and from_office and to_office:
+                    # 1. Structured individual data layout
                     new_data = pd.DataFrame([{
                         "Date": date,
                         "Item Name": item,
@@ -232,11 +234,23 @@ elif app_mode == "Stock":
                         "Reason": reason
                     }])
 
+                    # 2. Update master tracking register CSV
                     df = pd.read_csv(register_file)
                     df = pd.concat([df, new_data], ignore_index=True)
                     df.to_csv(register_file, index=False)
 
-                    st.success("Movement saved successfully!")
+                    # 3. AUTOMATIC INDEPENDENT CSV FILE GENERATION
+                    clean_item_name = "".join([c if c.isalnum() else "_" for c in item])
+                    generated_filename = f"Movement_{date}_{clean_item_name}.csv"
+                    generated_filepath = os.path.join(FOLDERS["Stock"], generated_filename)
+                    
+                    try:
+                        # Save the specific entry row as an isolated spreadsheet file
+                        new_data.to_csv(generated_filepath, index=False)
+                        st.success(f"Saved to Register and generated independent file: '{generated_filename}'!")
+                        st.rerun() 
+                    except Exception as e:
+                        st.error(f"Saved to register, but failed to create individual directory spreadsheet: {e}")
                 else:
                     st.error("Please fill required fields")
 
@@ -265,3 +279,4 @@ elif app_mode == "Consumables":
         display_file(FOLDERS["Consumables"], selected_consumable)
     else:
         st.info("Select a consumable record document from the sidebar to view.")
+    
